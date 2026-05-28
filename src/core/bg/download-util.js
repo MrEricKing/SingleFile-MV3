@@ -23,6 +23,8 @@
 
 /* global browser */
 
+import * as infoflowAutomation from "./infoflow-automation.js";
+
 const STATE_DOWNLOAD_COMPLETE = "complete";
 const STATE_DOWNLOAD_INTERRUPTED = "interrupted";
 const STATE_ERROR_CANCELED_CHROMIUM = "USER_CANCELED";
@@ -37,8 +39,9 @@ export {
 	download
 };
 
-async function download(downloadInfo, replacementCharacter) {
+async function download(downloadInfo, replacementCharacter, infoflowRequestId) {
 	let downloadId;
+	infoflowAutomation.onDownloadRequested(infoflowRequestId, { downloadInfo });
 	const result = new Promise((resolve, reject) => {
 		browser.downloads.onChanged.addListener(onChanged);
 
@@ -46,14 +49,27 @@ async function download(downloadInfo, replacementCharacter) {
 			if (event.id == downloadId && event.state) {
 				if (event.state.current == STATE_DOWNLOAD_COMPLETE) {
 					browser.downloads.search({ id: downloadId })
-						.then(downloadItems => resolve({ filename: downloadItems[0] && downloadItems[0].filename }))
-						.catch(() => resolve({}));
+						.then(downloadItems => {
+							const downloadData = { filename: downloadItems[0] && downloadItems[0].filename };
+							infoflowAutomation.onDownloadComplete(infoflowRequestId, { downloadId, filename: downloadData.filename });
+							resolve(downloadData);
+						})
+						.catch(() => {
+							infoflowAutomation.onDownloadComplete(infoflowRequestId, { downloadId });
+							resolve({});
+						});
 					browser.downloads.onChanged.removeListener(onChanged);
 				}
 				if (event.state.current == STATE_DOWNLOAD_INTERRUPTED) {
 					if (event.error && event.error.current == STATE_ERROR_CANCELED_CHROMIUM) {
+						infoflowAutomation.onDownloadInterrupted(infoflowRequestId, { downloadId, cancelled: true, error: event.error.current });
 						resolve({ cancelled: true });
 					} else {
+						infoflowAutomation.onDownloadInterrupted(infoflowRequestId, {
+							downloadId,
+							cancelled: false,
+							error: event.error && event.error.current || event.state.current
+						});
 						reject(new Error(event.state.current));
 					}
 					browser.downloads.onChanged.removeListener(onChanged);
@@ -63,34 +79,38 @@ async function download(downloadInfo, replacementCharacter) {
 	});
 	try {
 		downloadId = await browser.downloads.download(downloadInfo);
+		infoflowAutomation.onDownloadStarted(infoflowRequestId, { downloadId, downloadInfo });
 	} catch (error) {
 		if (error.message) {
 			const errorMessage = error.message.toLowerCase();
 			const invalidFilename = errorMessage.includes(ERROR_INVALID_FILENAME_GECKO) || errorMessage.includes(ERROR_INVALID_FILENAME_CHROMIUM);
 			if (invalidFilename && downloadInfo.filename.startsWith(".")) {
 				downloadInfo.filename = replacementCharacter + downloadInfo.filename;
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if (invalidFilename && downloadInfo.filename.includes(",")) {
 				downloadInfo.filename = downloadInfo.filename.replace(/,/g, replacementCharacter);
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if (invalidFilename && downloadInfo.filename.match(/\u200C|\u200D|\u200E|\u200F/)) {
 				downloadInfo.filename = downloadInfo.filename.replace(/\u200C|\u200D|\u200E|\u200F/g, replacementCharacter);
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if (invalidFilename && !downloadInfo.filename.match(/^[\x00-\x7F]+$/)) { // eslint-disable-line  no-control-regex
 				downloadInfo.filename = downloadInfo.filename.replace(/[^\x00-\x7F]+/g, replacementCharacter); // eslint-disable-line  no-control-regex
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if ((errorMessage.includes(ERROR_INCOGNITO_GECKO) || errorMessage.includes(ERROR_INCOGNITO_GECKO_ALT)) && downloadInfo.incognito) {
 				delete downloadInfo.incognito;
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if (errorMessage == ERROR_CONFLICT_ACTION_GECKO && downloadInfo.conflictAction) {
 				delete downloadInfo.conflictAction;
-				return download(downloadInfo, replacementCharacter);
+				return download(downloadInfo, replacementCharacter, infoflowRequestId);
 			} else if (errorMessage.includes(ERROR_DOWNLOAD_CANCELED_GECKO)) {
+				infoflowAutomation.onDownloadInterrupted(infoflowRequestId, { cancelled: true, error: error.message });
 				return { cancelled: true };
 			} else {
+				infoflowAutomation.onDownloadError(infoflowRequestId, error);
 				throw error;
 			}
 		} else {
+			infoflowAutomation.onDownloadError(infoflowRequestId, error);
 			throw error;
 		}
 	}

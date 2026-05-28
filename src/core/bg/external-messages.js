@@ -25,6 +25,7 @@
 
 import * as autosave from "./autosave.js";
 import * as business from "./business.js";
+import * as infoflowAutomation from "./infoflow-automation.js";
 import "./../../lib/single-file/background.js";
 
 const ACTION_SAVE_PAGE = "save-page";
@@ -34,10 +35,17 @@ const ACTION_SAVE_SELECTED = "save-selected-content";
 const ACTION_SAVE_SELECTED_TABS = "save-selected-tabs";
 const ACTION_SAVE_UNPINNED_TABS = "save-unpinned-tabs";
 const ACTION_SAVE_ALL_TABS = "save-all-tabs";
+const INFOFLOW_METHOD_CAPTURE_START = "infoflow.capture.start";
+const INFOFLOW_METHOD_CAPTURE_STATUS = "infoflow.capture.status";
+const INFOFLOW_METHOD_CAPTURE_LIST = "infoflow.capture.list";
+const INFOFLOW_METHOD_CAPTURE_CANCEL = "infoflow.capture.cancel";
 
 export { onMessage };
 
 async function onMessage(message, sender) {
+	if (message && typeof message == "object" && typeof message.method == "string" && message.method.startsWith("infoflow.capture.")) {
+		return onInfoFlowMessage(message, sender);
+	}
 	if (message == ACTION_SAVE_PAGE) {
 		const tabs = await browser.tabs.query({ currentWindow: true, active: true });
 		tabs.length = 1;
@@ -70,6 +78,37 @@ async function onMessage(message, sender) {
 			return false;
 		}
 	}
+}
+
+async function onInfoFlowMessage(message, sender) {
+	if (message.method == INFOFLOW_METHOD_CAPTURE_START) {
+		const tabs = await browser.tabs.query({ currentWindow: true, active: true });
+		tabs.length = 1;
+		const tab = tabs[0];
+		infoflowAutomation.createRequest(message, tab, sender);
+		const saveOptions = infoflowAutomation.buildSaveOptions(message);
+		const tasks = tab ? await business.saveTabs(tabs, saveOptions) : [];
+		return infoflowAutomation.registerTasks(message.requestId, tasks, saveOptions);
+	}
+	if (message.method == INFOFLOW_METHOD_CAPTURE_STATUS) {
+		return infoflowAutomation.getStatus(message.requestId);
+	}
+	if (message.method == INFOFLOW_METHOD_CAPTURE_LIST) {
+		return infoflowAutomation.listStatuses();
+	}
+	if (message.method == INFOFLOW_METHOD_CAPTURE_CANCEL) {
+		const status = infoflowAutomation.getStatus(message.requestId);
+		if (status) {
+			for (const task of status.tasks || []) {
+				if (typeof task.id == "number") {
+					business.cancelTask(task.id);
+					infoflowAutomation.onTaskCancelled(task.id);
+				}
+			}
+		}
+		return infoflowAutomation.getStatus(message.requestId);
+	}
+	throw new Error("Unknown InfoFlow capture method");
 }
 
 async function queryTabs(options) {

@@ -1,5 +1,5 @@
 {
-	"name": "SingleFile",
+	"name": "SingleFile InfoFlow Runtime",
 	"author": "Gildas Lormeau",
 	"homepage_url": "https://www.getsinglefile.com",
 	"icons": {
@@ -160,5 +160,11 @@
 	"devtools_page": "src/core/devtools/devtools.html",
 	"incognito": "spanning",
 	"manifest_version": 3,
-	"default_locale": "en"
+	"default_locale": "en",
+	"externally_connectable": {
+		"matches": [
+			"<all_urls>"
+		]
+	},
+	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApemdu5fqLK4XzUM5KLvXPOpUrlRyqP0pAhCmphM0xEt9Qil0BP97ixo85lhnedoblMEBtovvcQ/bJLOdytyOFs2A0MESDz/x9mrKkiXnYIDVDmK1uGWyIN21kaMlQbYgo3PsrQv3OERoekakdvgTg8aqKoDXHoCTj/DxVaUMb+YOb+0y/0TkleHjAs8oMyL2d9H4YmGENBN1Jv696n5zRFwlL8cZXduBVPlpx8I973hvCfizFyMxsWkjgcCPndGMybpLeBzGnRWwy/qRg00nEa6yf9DKN8/CUkTxk5GvwYl67Y3JACWBGZWk5gLMhBJFaBekyzQOfgM+825qpKJSgQIDAQAB"
 }

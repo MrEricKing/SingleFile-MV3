@@ -27,6 +27,7 @@ import * as config from "./config.js";
 import * as bookmarks from "./bookmarks.js";
 import * as companion from "./companion.js";
 import * as business from "./business.js";
+import * as infoflowAutomation from "./infoflow-automation.js";
 import * as editor from "./editor.js";
 import { launchWebAuthFlow, extractAuthCode } from "./tabs-util.js";
 import * as ui from "./../../ui/bg/index.js";
@@ -99,6 +100,7 @@ async function onMessage(message, sender) {
 				ui.onError(sender.tab.id, error.message, error.link);
 			}
 		}
+		infoflowAutomation.onTaskEnded(message.taskId, { hash: message.hash });
 		business.onSaveEnd(message.taskId);
 		return {};
 	}
@@ -293,6 +295,7 @@ async function downloadContent(message, tab) {
 			}
 		}
 	} catch (error) {
+		infoflowAutomation.onTaskError(message.taskId, error);
 		if (!error.message || error.message != "upload_cancelled") {
 			console.error(error); // eslint-disable-line no-console
 			ui.onError(tabId, error.message, error.link);
@@ -443,6 +446,7 @@ async function downloadCompressedContent(message, tab) {
 			}
 		}
 	} catch (error) {
+		infoflowAutomation.onTaskError(message.taskId, error);
 		if (!error.message || error.message != "upload_cancelled") {
 			console.error(error); // eslint-disable-line no-console
 			ui.onError(tabId, error.message, error.link);
@@ -651,7 +655,7 @@ async function downloadPage(pageData, options) {
 	if (options.incognito) {
 		downloadInfo.incognito = true;
 	}
-	const downloadData = await download(downloadInfo, options.filenameReplacementCharacter);
+	const downloadData = await download(downloadInfo, options.filenameReplacementCharacter, pageData.infoflowRequestId);
 	if (downloadData.filename) {
 		let url = downloadData.filename;
 		if (!url.startsWith("file:")) {

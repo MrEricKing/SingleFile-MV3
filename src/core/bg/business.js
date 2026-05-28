@@ -125,6 +125,7 @@ async function saveUrls(urls, options = {}) {
 
 async function saveTabs(tabs, options = {}) {
 	await initMaxParallelWorkers();
+	const taskInfos = [];
 	await Promise.all(tabs.map(async tab => {
 		const tabId = tab.id;
 		const tabOptions = await config.getOptions(tab.url);
@@ -146,6 +147,7 @@ async function saveTabs(tabs, options = {}) {
 						options: tabOptions,
 						method: "content.autosave"
 					});
+					taskInfos.push(taskInfo);
 					runTask(taskInfo);
 				}
 			} else {
@@ -159,12 +161,13 @@ async function saveTabs(tabs, options = {}) {
 				}
 				if (scriptsInjected || editor.isEditor(tab)) {
 					ui.onStart(tabId, EXECUTE_SCRIPTS_STEP);
-					addTask({
+					const taskInfo = addTask({
 						status: TASK_PENDING_STATE,
 						tab: tabData,
 						options: tabOptions,
 						method: "content.save"
 					});
+					taskInfos.push(taskInfo);
 				} else {
 					ui.onForbiddenDomain(tab);
 				}
@@ -174,6 +177,7 @@ async function saveTabs(tabs, options = {}) {
 		}
 	}));
 	runTasks();
+	return taskInfos.map(mapTaskInfo);
 }
 
 function addTask(info) {

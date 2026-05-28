@@ -62,6 +62,7 @@ async function downloadPage(pageData, options) {
 	const message = {
 		method: "downloads.download",
 		taskId: options.taskId,
+		infoflowRequestId: options.infoflowRequestId,
 		insertTextBody: options.insertTextBody,
 		confirmFilename: options.confirmFilename,
 		filenameConflictAction: options.filenameConflictAction,
